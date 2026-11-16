@@ -81,6 +81,17 @@ class TestABusyApiIsNotAVerdict(unittest.TestCase):
             with self.subTest(stderr=stderr):
                 self.assertTrue(is_transient(stderr))
 
+    def test_a_request_go_refused_to_build_is_not(self) -> None:
+        """The same envelope wraps a request that never left the host, from gh
+        2.103.3: a bad `-H` name or value, and a bad URL scheme. Retried, each
+        walked the whole ladder and failed with the same error."""
+        for stderr in (
+            'Get "https://api.github.com/zen": net/http: invalid header field name "bad name"',
+            'Get "https://api.github.com/zen": net/http: invalid header field value for "X-Ok"',
+            'Get "ftp://example.invalid/x": unsupported protocol scheme "ftp"',
+        ):
+            self.assertFalse(is_transient(stderr), stderr)
+
     def test_a_cut_off_answer_is_retried(self) -> None:
         """An answer that arrived empty or cut off fails `gh api --jq` with Go's
         decoder error and no status - the line a `gh api --jq` ref read logged."""

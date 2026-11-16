@@ -16,7 +16,7 @@ import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from gh_transient.classify import is_transient
+from gh_transient.classify import is_transient, names_secondary_rate_limit
 
 # Bound on one `gh` attempt. A call against a stalled socket would otherwise
 # hold its job to the job's own timeout, which kills the run rather than
@@ -41,11 +41,11 @@ GH_TIMEOUT_SECONDS = 60
 # attempt with no chance of clearing it - which is also why this is a
 # written-out ladder rather than a pure exponential.
 #
-# One ladder serves every transient class, so a secondary rate limit is also
-# re-issued at 5s and 20s, sooner than that guidance asks; only the last
-# attempt waits the minute. A ladder of its own for the rate limit would
-# lengthen the worst case every caller's runtime budget is sized to hold.
+# A secondary rate limit skips the rungs shorter than that minute rather than
+# taking a ladder of its own: it gets fewer attempts, never a longer worst
+# case, so every caller's runtime budget, sized to this ladder, still holds.
 RETRY_DELAYS_SECONDS = (5, 20, 60)
+SECONDARY_RATE_LIMIT_WAIT_SECONDS = 60
 
 
 class GhError(RuntimeError):
@@ -62,7 +62,6 @@ class GhError(RuntimeError):
 def run_gh(
     args: Sequence[str],
     *,
-    stdin: str | None = None,
     timeout: float = GH_TIMEOUT_SECONDS,
     cwd: Path | None = None,
 ) -> str:
@@ -76,7 +75,6 @@ def run_gh(
     try:
         completed = subprocess.run(
             ["gh", *args],
-            input=stdin,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -127,13 +125,29 @@ def retry_transient[T](
     one with nothing left to wait for, so the last failure propagates from the
     same place a first-attempt one does. A non-transient failure never sleeps:
     waiting on an answer only delays the failure it has already earned.
+
+    A failure whose `stderr` - GhError's, or a `stderr` string on the caller's
+    own error type - names the secondary rate limit skips the delays shorter
+    than SECONDARY_RATE_LIMIT_WAIT_SECONDS. Only gh's stderr is read for it,
+    never the error's whole message, which carries the command's arguments.
     """
-    for delay in RETRY_DELAYS_SECONDS:
+    delays = list(RETRY_DELAYS_SECONDS)
+    while delays:
         try:
             return attempt()
         except Exception as error:
             if not transient(error):
                 raise
+            stderr = getattr(error, "stderr", None)
+            if isinstance(stderr, str) and names_secondary_rate_limit(stderr):
+                delays = [
+                    delay
+                    for delay in delays
+                    if delay >= SECONDARY_RATE_LIMIT_WAIT_SECONDS
+                ]
+                if not delays:
+                    raise
+            delay = delays.pop(0)
             if deadline is not None and clock() + delay >= deadline:
                 raise
             if may_retry is not None and not may_retry():
@@ -152,7 +166,6 @@ def is_transient_gh_error(error: Exception) -> bool:
 def read_gh(
     args: Sequence[str],
     *,
-    stdin: str | None = None,
     timeout: float = GH_TIMEOUT_SECONDS,
     cwd: Path | None = None,
     on_retry: Callable[[float, Exception], None] = say_retry,
@@ -163,10 +176,8 @@ def read_gh(
 ) -> str:
     """run_gh for a READ, re-issued while its failure says GitHub was busy.
 
-    A stdin is fine to send again: it is the request body of a read such as
-    `gh api graphql --input -`, the same request each time. With a `deadline`,
-    each attempt is also cut off by the time left before it, and one that would
-    start with none left fails as transient without running.
+    With a `deadline`, each attempt is also cut off by the time left before it,
+    and one that would start with none left fails as transient without running.
     """
 
     def attempt() -> str:
@@ -179,7 +190,7 @@ def read_gh(
                     transient=True,
                 )
             bound = min(timeout, left)
-        return run_gh(args, stdin=stdin, timeout=bound, cwd=cwd)
+        return run_gh(args, timeout=bound, cwd=cwd)
 
     return retry_transient(
         attempt,
