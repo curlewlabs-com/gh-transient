@@ -1,0 +1,28 @@
+# Put the gh_transient package on PYTHONPATH for every later step of the job.
+#
+# The package is the code beside this file, so the job needs no checkout of
+# this repository, no pip install and no network fetch of its own: the runner
+# has already downloaded this action while setting up the job. That matters
+# for a tool whose job is surviving GitHub's transient failures - an install
+# step mid-job would be one more request that can fail transiently with
+# nothing retrying it.
+#
+# The step itself needs no Python. A later step then runs
+# `python3 -m gh_transient read -- <gh arguments>`, or imports gh_transient
+# from its own Python; the README has both.
+
+name: "gh-transient"
+description: >-
+  Put the gh_transient package on PYTHONPATH for the rest of the job, so a step
+  can re-issue a gh read that GitHub failed to serve and abort on one it
+  answered.
+
+runs:
+  using: composite
+  steps:
+    - name: Put gh_transient on PYTHONPATH
+      shell: bash
+      env:
+        SRC: ${{ github.action_path }}/src
+      # Prepended, keeping whatever PYTHONPATH the job already set.
+      run: echo "PYTHONPATH=$SRC${PYTHONPATH:+:$PYTHONPATH}" >> "$GITHUB_ENV"
