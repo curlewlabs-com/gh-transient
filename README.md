@@ -158,6 +158,18 @@ rate limit is also re-issued after 5 and 20 seconds, sooner than that guidance
 asks; only the last attempt waits the full minute. The command line cuts each attempt off at 30 seconds, so one call's
 whole ladder fits in a few minutes of a job's timeout.
 
+## Known issues
+
+- **A secondary rate limit is re-issued sooner than GitHub asks.** The ladder
+  is the same for every transient failure, so a secondary-limit 403 is retried
+  after 5 and 20 seconds before the 60-second wait GitHub's guidance calls for.
+- **Go's transport error is matched by its envelope, not its cause.** Any line
+  shaped `Get "<url>": ...` reads as no answer, which also covers a request
+  `gh` refused to send - an invalid header passed with `-H`, for one. Such a
+  call waits out the whole ladder before failing with the same error.
+- **The budget file is not locked.** Calls sharing one `--budget-file` must run
+  one after another; two in flight at once can both take the last retry.
+
 ## Requirements
 
 - Python 3.12 or newer, standard library only.
