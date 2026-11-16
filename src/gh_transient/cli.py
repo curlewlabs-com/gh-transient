@@ -11,7 +11,10 @@ may have landed anyway.
 every call the step makes draws from, so a scan of several records cannot
 spend a ladder per record: the step writes the count once, and a call that
 finds none left fails at its first failure. Each call has its own process, so
-the count lives in the file rather than in memory.
+the count lives in the file rather than in memory. The calls drawing on one
+file run one after another, as a step's shell runs them: the read, decrement
+and write are not locked, so two calls in flight at once can both take the
+last retry.
 
 `--stdin` reads this process's stdin once and sends it on every attempt, for a
 call that takes its request body there. A subcommand that rewords gh's errors -

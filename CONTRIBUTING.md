@@ -34,7 +34,8 @@ ruff format --check . && ruff check . && mypy
   arguments, and tests pass their own, so no test waits.
 - **Fail closed.** An unrecognised failure is reported, never guessed at.
 - **Standard library only at runtime**, so the action needs nothing installed.
-- **Pin dependencies exactly.** Action references and the tools in
+- **Pin dependencies exactly.** An action reference is its release's commit
+  SHA with the version beside it, since a tag can be moved, and the tools in
   `requirements-dev.txt` are exact versions, so a resolver cannot move them.
   Renovate proposes their updates; a pin written inline in a workflow needs a
   `# renovate:` comment above it saying what the literal is.

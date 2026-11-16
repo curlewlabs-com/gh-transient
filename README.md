@@ -73,7 +73,9 @@ The command's options:
 - `--budget-file PATH` names a file holding the retries left to a whole step.
   Every call the step makes draws from it, so a loop over many records cannot
   spend a full ladder per record. Write the count once at the top of the step;
-  a call that finds none left fails at its first failure.
+  a call that finds none left fails at its first failure. Calls sharing one
+  file must run one after another: the count is not locked, so two calls in
+  flight at once can both take the last retry.
 
 ```sh
 budget=$(mktemp); echo 3 > "$budget"
@@ -147,7 +149,9 @@ failures read as unrecognised and fail on the first attempt.
 A read is attempted, then re-attempted after 5, 20 and 60 seconds: four
 attempts at most. The last wait is a minute because GitHub's REST guidance asks
 for at least one minute before retrying a secondary rate limit that names no
-reset time. The command line cuts each attempt off at 30 seconds, so one call's
+reset time. The ladder is the same for every transient failure, so a secondary
+rate limit is also re-issued after 5 and 20 seconds, sooner than that guidance
+asks; only the last attempt waits the full minute. The command line cuts each attempt off at 30 seconds, so one call's
 whole ladder fits in a few minutes of a job's timeout.
 
 ## Requirements

@@ -40,6 +40,11 @@ GH_TIMEOUT_SECONDS = 60
 # "Handle rate limit errors appropriately"), so a shorter one would spend the
 # attempt with no chance of clearing it - which is also why this is a
 # written-out ladder rather than a pure exponential.
+#
+# One ladder serves every transient class, so a secondary rate limit is also
+# re-issued at 5s and 20s, sooner than that guidance asks; only the last
+# attempt waits the minute. A ladder of its own for the rate limit would
+# lengthen the worst case every caller's runtime budget is sized to hold.
 RETRY_DELAYS_SECONDS = (5, 20, 60)
 
 
