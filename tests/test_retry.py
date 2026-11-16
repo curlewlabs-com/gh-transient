@@ -66,6 +66,21 @@ class TestReadGh(unittest.TestCase):
             [RETRY_DELAYS_SECONDS[0], SECONDARY_RATE_LIMIT_WAIT_SECONDS],
         )
 
+    def test_only_ghs_stderr_can_name_the_rate_limit(self) -> None:
+        # The error's message carries the command, so a search for the phrase
+        # would otherwise skip the short waits on an ordinary blip, and fail
+        # outright under a deadline shorter than the minute.
+        searched = ["issue", "list", "--search", "secondary rate limit"]
+        stalled = subprocess.TimeoutExpired(["gh"], 120)
+        for results in (
+            answers("gh: Server Error (HTTP 502)\n", ""),
+            [stalled, *answers("")],
+        ):
+            slept: list[float] = []
+            with mock.patch("subprocess.run", side_effect=results):
+                read_gh(searched, sleep=slept.append, on_retry=lambda d, e: None)
+            self.assertEqual(slept, [RETRY_DELAYS_SECONDS[0]])
+
     def test_an_answer_is_reported_at_once(self) -> None:
         slept: list[float] = []
         with (

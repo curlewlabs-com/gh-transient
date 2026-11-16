@@ -126,9 +126,10 @@ def retry_transient[T](
     same place a first-attempt one does. A non-transient failure never sleeps:
     waiting on an answer only delays the failure it has already earned.
 
-    A failure whose text names the secondary rate limit - GhError's carries
-    gh's stderr, and so does any error whose message quotes it - skips the
-    delays shorter than SECONDARY_RATE_LIMIT_WAIT_SECONDS.
+    A failure whose `stderr` - GhError's, or a `stderr` string on the caller's
+    own error type - names the secondary rate limit skips the delays shorter
+    than SECONDARY_RATE_LIMIT_WAIT_SECONDS. Only gh's stderr is read for it,
+    never the error's whole message, which carries the command's arguments.
     """
     delays = list(RETRY_DELAYS_SECONDS)
     while delays:
@@ -137,7 +138,8 @@ def retry_transient[T](
         except Exception as error:
             if not transient(error):
                 raise
-            if names_secondary_rate_limit(str(error)):
+            stderr = getattr(error, "stderr", None)
+            if isinstance(stderr, str) and names_secondary_rate_limit(stderr):
                 delays = [
                     delay
                     for delay in delays

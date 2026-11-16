@@ -75,8 +75,7 @@ The command's options:
   Every call the step makes draws from it, so a loop over many records cannot
   spend a full ladder per record. Write the count once at the top of the step;
   a call that finds none left fails at its first failure. Calls sharing one
-  file must run one after another: the count is not locked, so two calls in
-  flight at once can both take the last retry.
+  file may run at once: each takes its retry under a lock on the file.
 
 ```sh
 budget=$(mktemp); echo 3 > "$budget"
