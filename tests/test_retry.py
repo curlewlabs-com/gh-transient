@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from unittest import mock
 
 from gh_transient import RETRY_DELAYS_SECONDS, GhError, read_gh
+from gh_transient.retry import SECONDARY_RATE_LIMIT_WAIT_SECONDS
 
 READ = ["api", "repos/o/n/actions/runs/1"]
 
@@ -48,6 +49,22 @@ class TestReadGh(unittest.TestCase):
         # timeout branch marks it worth another attempt.
         stalled = subprocess.TimeoutExpired(["gh"], 120)
         self.assertEqual(self.read([stalled, *answers("")]), [RETRY_DELAYS_SECONDS[0]])
+
+    def test_a_secondary_rate_limit_waits_the_minute_github_asks(self) -> None:
+        # GitHub asks for at least a minute before retrying a secondary limit;
+        # the 5s and 20s rungs would spend attempts it cannot clear in, and a
+        # ladder of its own would lengthen every caller's sized worst case.
+        limited = (
+            "gh: You have exceeded a secondary rate limit. Please wait a few"
+            " minutes before you try again. (HTTP 403)\n"
+        )
+        self.assertEqual(
+            self.read(answers(limited, "")), [SECONDARY_RATE_LIMIT_WAIT_SECONDS]
+        )
+        self.assertEqual(
+            self.read(answers("gh: Server Error (HTTP 502)\n", limited, "")),
+            [RETRY_DELAYS_SECONDS[0], SECONDARY_RATE_LIMIT_WAIT_SECONDS],
+        )
 
     def test_an_answer_is_reported_at_once(self) -> None:
         slept: list[float] = []

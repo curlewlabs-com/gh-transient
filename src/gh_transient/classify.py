@@ -59,8 +59,16 @@ GH_CONNECT_FAILURE = "error connecting to "
 # `gh run list` puts its own `failed to get runs: ` ahead of that error, sampled
 # on 2026-11-05 with a TLS handshake timeout behind it, so a
 # `failed to <verb phrase>: ` lead is let through.
+#
+# The same envelope wraps a request Go refused to build, which never reached
+# GitHub and fails the same way every time: `net/http: invalid header field
+# name "bad name"` and `net/http: invalid header field value for "X-Ok"` for a
+# bad `-H`, and `unsupported protocol scheme "ftp"` for a bad URL, each sampled
+# from gh 2.103.3 on 2026-11-16. Those causes are Go's request validation,
+# which runs before any byte is sent, so they are refused by name.
 GH_NO_ANSWER = re.compile(
     r'^(?:failed to [a-z ]+: )?(?:Get|Head|Post|Put|Patch|Delete) "[^"]*": '
+    r"(?!net/http: invalid |unsupported protocol scheme )"
 )
 
 # An answer that arrived empty or cut off: Go's JSON decoder ran out of input.
@@ -88,6 +96,12 @@ GH_GRAPHQL_GAVE_UP = "GraphQL: Something went wrong while executing your query"
 # clears it, and a caller that has really spent its budget is better off saying
 # so.
 SECONDARY_RATE_LIMIT = "secondary rate limit"
+
+
+def names_secondary_rate_limit(text: str) -> bool:
+    """Whether a failure's text names GitHub's secondary rate limit, which
+    asks for a longer wait than the other transient failures."""
+    return SECONDARY_RATE_LIMIT in text.lower()
 
 
 def http_failure(line: str) -> tuple[int, str] | None:

@@ -71,9 +71,6 @@ zipball or a release asset does not belong here; run `gh` for those directly.
 
 The command's options:
 
-- `--stdin` reads this process's stdin once and sends it on every attempt, for
-  a read that takes its request body there, such as
-  `gh api graphql --input -`.
 - `--budget-file PATH` names a file holding the retries left to a whole step.
   Every call the step makes draws from it, so a loop over many records cannot
   spend a full ladder per record. Write the count once at the top of the step;
@@ -97,7 +94,7 @@ than a cancelled job.
 Outside Actions, install it from this repository at a fixed tag:
 
 ```sh
-python3 -m pip install "gh-transient @ git+https://github.com/curlewlabs-com/gh-transient@v0.1.0"
+python3 -m pip install "gh-transient @ git+https://github.com/curlewlabs-com/gh-transient@v0.2.0"
 ```
 
 ```python
@@ -153,22 +150,9 @@ failures read as unrecognised and fail on the first attempt.
 A read is attempted, then re-attempted after 5, 20 and 60 seconds: four
 attempts at most. The last wait is a minute because GitHub's REST guidance asks
 for at least one minute before retrying a secondary rate limit that names no
-reset time. The ladder is the same for every transient failure, so a secondary
-rate limit is also re-issued after 5 and 20 seconds, sooner than that guidance
-asks; only the last attempt waits the full minute. The command line cuts each attempt off at 30 seconds, so one call's
-whole ladder fits in a few minutes of a job's timeout.
-
-## Known issues
-
-- **A secondary rate limit is re-issued sooner than GitHub asks.** The ladder
-  is the same for every transient failure, so a secondary-limit 403 is retried
-  after 5 and 20 seconds before the 60-second wait GitHub's guidance calls for.
-- **Go's transport error is matched by its envelope, not its cause.** Any line
-  shaped `Get "<url>": ...` reads as no answer, which also covers a request
-  `gh` refused to send - an invalid header passed with `-H`, for one. Such a
-  call waits out the whole ladder before failing with the same error.
-- **The budget file is not locked.** Calls sharing one `--budget-file` must run
-  one after another; two in flight at once can both take the last retry.
+reset time, so a secondary rate limit skips the shorter waits and is re-issued
+once, after the minute. The command line cuts each attempt off at 30 seconds,
+so one call's whole ladder fits in a few minutes of a job's timeout.
 
 ## Requirements
 
