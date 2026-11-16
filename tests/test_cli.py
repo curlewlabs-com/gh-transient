@@ -58,23 +58,33 @@ class TestGhRetryCli(unittest.TestCase):
 
     def test_a_call_in_flight_waits_for_the_budget_another_holds(self) -> None:
         # Calls drawing on one file at once would otherwise both read the last
-        # retry and both take it. A call that finds the file locked waits for
-        # it; it never reads the count beside a write in progress.
+        # retry and both take it. The other call is let go only once it has
+        # reached the lock this test holds, so it can read the count only after
+        # the change below - and a spend that took no lock never signals.
+        real_flock = fcntl.flock
+        reached_lock = threading.Event()
+
+        def flock(fd: object, operation: int) -> None:
+            reached_lock.set()
+            real_flock(fd, operation)  # type: ignore[arg-type]
+
         with tempfile.TemporaryDirectory() as tmp:
             budget = Path(tmp) / "retries"
             budget.write_text("1\n")
             taken: list[bool] = []
             with budget.open("r+") as held:
-                fcntl.flock(held, fcntl.LOCK_EX)
-                other = threading.Thread(target=lambda: taken.append(spend(budget)))
-                other.start()
-                other.join(timeout=0.5)
-                self.assertTrue(other.is_alive())
-                held.seek(0)
-                held.write("0\n")
-                held.truncate()
-                held.flush()
-            other.join(timeout=10)
+                real_flock(held, fcntl.LOCK_EX)
+                with mock.patch.object(fcntl, "flock", flock):
+                    other = threading.Thread(target=lambda: taken.append(spend(budget)))
+                    other.start()
+                    self.assertTrue(reached_lock.wait(timeout=10))
+                    held.seek(0)
+                    held.write("0\n")
+                    held.truncate()
+                    held.flush()
+                    real_flock(held, fcntl.LOCK_UN)
+                    other.join(timeout=10)
+            self.assertFalse(other.is_alive())
             self.assertEqual(taken, [False])
             self.assertEqual(budget.read_text().strip(), "0")
 
