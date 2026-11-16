@@ -20,8 +20,10 @@ last retry.
 call that takes its request body there. A subcommand that rewords gh's errors -
 `gh secret set` prefixes its own - is retried only once classify.py carries a
 live sample of that wording; until then its failures read as unrecognised.
-gh's stdout is passed through; each retry is a warning annotation, and a call
-GitHub keeps failing is an error annotation and exit status 1.
+gh's stdout is read as text and written back out, so this is for text reads -
+JSON, `--jq` output, listings - and not a binary download; each retry is a
+warning annotation, and a call GitHub keeps failing is an error annotation and
+exit status 1.
 """
 
 from __future__ import annotations
