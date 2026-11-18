@@ -139,12 +139,16 @@ const archive: Buffer = readGhSync([
 ]);
 ```
 
-`readGhSync` runs `python3 -m gh_transient read`, so its retries and their
-`::warning::` lines are the command's, passed on to the caller's stderr. It
-throws `GhReadError` when GitHub answered with a failure, when it kept failing
-to serve the read, or when the command could not run. It takes one option,
-`budgetFile`, the command's `--budget-file`. It is synchronous, blocking until
-the read ends with its ladder included, so it suits a script, not a server.
+`readGhSync` runs that copy's `read` command, as `python3 -m gh_transient read`
+would, so its retries and their `::warning::` lines are the command's, passed on
+to the caller's stderr. The interpreter runs isolated (`python3 -I`): the
+caller's working directory, its `PYTHONPATH` and other `PYTHON*` variables, and
+its user site-packages never reach it, so nothing there can stand in for the
+package or a standard module. It throws `GhReadError` when GitHub answered with
+a failure, when it kept failing to serve the read, or when the command could not
+run. It takes one option, `budgetFile`, the command's `--budget-file`. It is
+synchronous, blocking until the read ends with its ladder included, so it suits
+a script, not a server.
 
 ## What counts as transient
 
