@@ -38,6 +38,13 @@ export class GhReadError extends Error {
   override name = "GhReadError";
 }
 
+// A spawnSync output as text. It is undefined when the command could not be
+// started at all, whatever the type says: Bun and Node both leave stdout and
+// stderr unset beside `error` then.
+function textOf(output: Buffer | undefined): string {
+  return output?.toString() ?? "";
+}
+
 // The bytes `gh` wrote to stdout, for a read: a call that creates, comments
 // or dispatches may have landed even when it failed, so it never comes here.
 // Throws GhReadError when GitHub answered with a failure, when it kept failing
@@ -61,7 +68,7 @@ export function readGhSync(
       maxBuffer: Infinity,
     },
   );
-  const stderr = result.stderr?.toString() ?? "";
+  const stderr = textOf(result.stderr);
   // The command's retry warnings and its error are workflow annotations, so
   // they are passed on as written rather than kept only in the thrown error.
   if (stderr !== "") process.stderr.write(stderr);

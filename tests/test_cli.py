@@ -11,6 +11,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from typing import IO
 from unittest import mock
 
 from gh_transient.cli import main, spend
@@ -83,9 +84,9 @@ class TestGhRetryCli(unittest.TestCase):
         real_flock = fcntl.flock
         reached_lock = threading.Event()
 
-        def flock(fd: object, operation: int) -> None:
+        def flock(fd: int | IO[str], operation: int) -> None:
             reached_lock.set()
-            real_flock(fd, operation)  # type: ignore[arg-type]
+            real_flock(fd, operation)
 
         with tempfile.TemporaryDirectory() as tmp:
             budget = Path(tmp) / "retries"

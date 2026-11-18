@@ -1,0 +1,8 @@
+{
+  "ignore": [
+    {
+      "path": "consumer/read.ts",
+      "reason": "a caller's file: it imports the package by name, which resolves only once CI installs the release tarball beside it, and CI type-checks it there under each TypeScript the package's callers use"
+    }
+  ]
+}
