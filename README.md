@@ -7,7 +7,7 @@ failed [`gh`](https://cli.github.com/) call: did GitHub fail to serve it, or
 did GitHub answer it? A read that GitHub failed to serve is re-issued on a
 short, bounded ladder; one that GitHub answered fails at once.
 
-It comes three ways:
+It comes four ways:
 
 - **A classifier**, `is_transient(stderr)`, over the shapes `gh` prints when
   GitHub did not answer: a 5xx or 429 in any of the forms `gh` reports a status
@@ -19,6 +19,8 @@ It comes three ways:
 - **A command and a GitHub Action** for workflow shell steps:
   `python3 -m gh_transient read -- <gh arguments>`, with the action putting
   the package on the job's `PYTHONPATH` so nothing is installed.
+- **A TypeScript function**, `readGhSync(args)`, for scripts under Bun: it runs
+  the command and returns the bytes `gh` wrote.
 
 ## Why it exists
 
@@ -121,6 +123,29 @@ A caller that keeps its own error type around its own `gh` runner can use the
 pieces separately: `is_transient(stderr)` to classify, and
 `retry_transient(attempt, transient)` for the ladder.
 
+### From TypeScript
+
+The package is a tarball attached to each release, and each release's notes
+carry its `bun add` line. It ships the Python package beside the TypeScript and
+runs that copy, so the two are always one release; it needs `python3` on
+`PATH` and nothing installed.
+
+```ts
+import { GhReadError, readGhSync } from "@curlewlabs-com/gh-transient";
+
+const archive: Buffer = readGhSync([
+  "api",
+  "repos/OWNER/REPO/actions/runs/RUN_ID/logs",
+]);
+```
+
+`readGhSync` runs `python3 -m gh_transient read`, so its retries and their
+`::warning::` lines are the command's, passed on to the caller's stderr. It
+throws `GhReadError` when GitHub answered with a failure, when it kept failing
+to serve the read, or when the command could not run. It takes one option,
+`budgetFile`, the command's `--budget-file`. It is synchronous, blocking until
+the read ends with its ladder included, so it suits a script, not a server.
+
 ## What counts as transient
 
 | `gh` printed                                                    | Transient                                  |
@@ -157,14 +182,16 @@ so one call's whole ladder fits in a few minutes of a job's timeout.
 - Python 3.12 or newer, standard library only.
 - `gh` on `PATH`, authenticated as usual (`GH_TOKEN` in a workflow).
 - The action runs on Linux and macOS runners.
+- The TypeScript entry point is TypeScript source, for Bun.
 
 ## Versioning
 
 Releases are tagged `vMAJOR.MINOR.PATCH`, and those tags are immutable. The
 floating `v0` tag follows the latest `v0.x` release, for workflows on `@v0`.
-The Python names the package root exports, the command's verb and options, and
-the action's behavior are the contract. Before 1.0.0 a change to any of them is
-a minor version, and its release notes say how to move.
+The Python names the package root exports, the command's verb and options, the
+TypeScript package's exports, and the action's behavior are the contract.
+Before 1.0.0 a change to any of them is a minor version, and its release notes
+say how to move.
 
 ## Development
 
@@ -172,6 +199,8 @@ a minor version, and its release notes say how to move.
 python3 -m unittest discover -s tests -t .
 python3 -m pip install -r requirements-dev.txt
 ruff format --check . && ruff check . && mypy
+bun install --frozen-lockfile
+bun run format:check && bun run typecheck && bun run test
 ```
 
 [CONTRIBUTING.md](CONTRIBUTING.md) has the conventions, including what a new

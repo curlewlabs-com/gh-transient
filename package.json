@@ -1,0 +1,35 @@
+{
+  "name": "@curlewlabs-com/gh-transient",
+  "version": "0.2.1",
+  "description": "Tell a gh CLI call GitHub failed to serve from one it answered, and re-issue a read that was the first kind.",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/curlewlabs-com/gh-transient.git"
+  },
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./ts/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "ts/index.ts",
+    "src/gh_transient/*.py",
+    "src/gh_transient/py.typed",
+    "README.md",
+    "LICENSE-APACHE",
+    "LICENSE-MIT"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "bun test --no-install ts",
+    "format": "prettier --write ts package.json tsconfig.json",
+    "format:check": "prettier --check ts package.json tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.4",
+    "prettier": "3.9.10",
+    "typescript": "7.0.2"
+  }
+}

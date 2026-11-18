@@ -24,7 +24,13 @@ These are the checks CI runs on every push and pull request:
 python3 -m unittest discover -s tests -t .
 python3 -m pip install -r requirements-dev.txt
 ruff format --check . && ruff check . && mypy
+bun install --frozen-lockfile
+bun run format:check && bun run typecheck && bun run test
 ```
+
+The TypeScript in `ts/` only runs the command. A change to what counts as
+transient, or to the ladder, belongs in the Python, where both entry points
+pick it up.
 
 ## Conventions
 
@@ -64,10 +70,13 @@ the tag and its assets immutable. The floating `vMAJOR` tag is moved to each new
 release in that major series, so workflows on `@v0` get fixes. Never attach a
 release to the floating tag, because immutability would stop the next move.
 
-1. Bump `version` in `pyproject.toml` and merge that to `main`.
-2. Tag the merge commit `vMAJOR.MINOR.PATCH` and push the tag.
+1. Bump `version` in `pyproject.toml` and `package.json` to the same value and
+   merge that to `main`. CI fails when they differ.
+2. Tag the merge commit `vMAJOR.MINOR.PATCH` and push the tag. The Release
+   workflow runs CI on it, builds the TypeScript tarball, and opens a draft
+   release with the tarball attached.
 3. Move `vMAJOR` to the same commit and push it.
-4. Publish the fixed tag: `gh release create vMAJOR.MINOR.PATCH`.
+4. Publish the draft release once its workflow is green.
 
 ## License
 
