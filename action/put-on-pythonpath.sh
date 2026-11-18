@@ -1,7 +1,10 @@
 #!/bin/sh
 # The action's one step: prepend the package beside this action to PYTHONPATH
 # for every later step of the job, keeping whatever PYTHONPATH the job already
-# set. GITHUB_ENV is read a line at a time, so a newline in that value would
+# set. The entries are kept on purpose: those steps run the job's own Python,
+# which may import from them too, and choosing that path is the job's call;
+# the package goes first only so its copy is the gh_transient they import.
+# GITHUB_ENV is read a line at a time, so a newline in that value would
 # set a second variable of its own; it is refused instead.
 set -eu
 value=$GITHUB_ACTION_PATH/src${PYTHONPATH:+:$PYTHONPATH}
