@@ -94,7 +94,7 @@ than a cancelled job.
 Outside Actions, install it from this repository at a fixed tag:
 
 ```sh
-python3 -m pip install "gh-transient @ git+https://github.com/curlewlabs-com/gh-transient@v0.3.1"
+python3 -m pip install "gh-transient @ git+https://github.com/curlewlabs-com/gh-transient@v0.3.2"
 ```
 
 ```python
@@ -186,7 +186,10 @@ so one call's whole ladder fits in a few minutes of a job's timeout.
 - Python 3.12 or newer, standard library only.
 - `gh` on `PATH`, authenticated as usual (`GH_TOKEN` in a workflow).
 - The action runs on Linux and macOS runners.
-- The TypeScript entry point is TypeScript source, for Bun.
+- The TypeScript entry point is TypeScript source, for Bun. A caller
+  type-checks it as part of its own program; CI checks a caller's project
+  (`consumer/`) against the release tarball under strict settings with each
+  TypeScript release the `typescript` and `typescript-6` devDependencies name.
 
 ## Versioning
 

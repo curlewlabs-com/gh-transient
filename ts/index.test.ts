@@ -28,6 +28,8 @@ case "$FAKE_GH_MODE" in
   archive) printf 'PK\\003\\004\\377\\r\\n\\000' ;;
   refused) echo 'gh: Not Found (HTTP 404)' >&2; exit 1 ;;
   busy) echo 'gh: Server Error (HTTP 502)' >&2; exit 1 ;;
+  # gh's parent is the command's Python, so this kills the command itself.
+  kill-command) kill -KILL "$PPID" ;;
 esac
 `;
 
@@ -119,6 +121,16 @@ describe("readGhSync", () => {
     const message = thrownBy(() => readGhSync([])).message;
     expect(message).toContain("exited 2");
     expect(calls()).toBe(0);
+  });
+
+  test("throws, naming the signal, when the command is killed", () => {
+    // A command that dies mid-read printed no verdict, so the caller must get
+    // a GhReadError that says how it ended, never the partial stdout.
+    process.env["FAKE_GH_MODE"] = "kill-command";
+    const message = thrownBy(() => readGhSync(["api", "x"])).message;
+    expect(message).toContain("gh api x");
+    expect(message).toContain("was killed by SIGKILL");
+    expect(calls()).toBe(1);
   });
 
   test("throws when python3 cannot be started", () => {

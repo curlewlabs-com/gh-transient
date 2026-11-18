@@ -146,20 +146,29 @@ jobs:
             exit 1
           fi
       # A caller runs the tarball, not this tree: installed into a project of
-      # its own, from a directory of its own. So one real read goes through the
-      # installed copy from a directory holding a stand-in for a standard
-      # module the command imports, with PYTHONPATH naming it; were the
-      # stand-in imported, the read would print nothing.
+      # its own (consumer/), type-checked there by the caller's compiler, and
+      # run from a directory of its own.
+      - name: Install the tarball into a caller's project
+        run: |
+          cp -R consumer "$RUNNER_TEMP/consumer"
+          cd "$RUNNER_TEMP/consumer"
+          bun add "$RUNNER_TEMP"/curlewlabs-com-gh-transient-*.tgz
+      # Each TypeScript release the package's callers compile with, so a form
+      # one of them rejects fails here rather than in a caller's typecheck.
+      - name: Type-check the caller under each TypeScript its callers use
+        run: |
+          for tsc in typescript typescript-6; do
+            "node_modules/$tsc/bin/tsc" --version
+            "node_modules/$tsc/bin/tsc" -p "$RUNNER_TEMP/consumer" --typeRoots "$PWD/node_modules/@types"
+          done
+      # One real read through the installed copy, from a directory holding a
+      # stand-in for a standard module the command imports, with PYTHONPATH
+      # naming it; were the stand-in imported, the read would print nothing.
       - name: Read through the installed tarball, as a caller does
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          consumer="$RUNNER_TEMP/consumer"
-          mkdir "$consumer"
-          cd "$consumer"
-          printf '{"name": "consumer", "private": true, "type": "module"}\n' > package.json
-          bun add "$RUNNER_TEMP"/curlewlabs-com-gh-transient-*.tgz
-          printf 'import { readGhSync } from "@curlewlabs-com/gh-transient";\nconst repo = process.env["GITHUB_REPOSITORY"] ?? "";\nprocess.stdout.write(readGhSync(["api", "repos/" + repo, "--jq", ".full_name"]));\n' > read.ts
+          cd "$RUNNER_TEMP/consumer"
           printf 'raise SystemExit(0)\n' > argparse.py
           read=$(PYTHONPATH=. bun read.ts)
           test "$read" = "$GITHUB_REPOSITORY"
