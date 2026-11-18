@@ -28,6 +28,10 @@ bun install --frozen-lockfile
 bun run typecheck && bun run test
 ```
 
+eslint runs in CI through ci-baseline. To run the same check locally, after
+installing dependencies: `<a ci-baseline checkout>/lib/lint-local.sh`. It runs
+the ci-baseline commit this repository's workflows pin.
+
 The TypeScript in `ts/` only runs the command. A change to what counts as
 transient, or to the ladder, belongs in the Python, where both entry points
 pick it up.
