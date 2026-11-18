@@ -22,12 +22,11 @@
     "LICENSE-MIT"
   ],
   "scripts": {
-    "typecheck": "node_modules/typescript/bin/tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json",
     "test": "bun test --no-install ts"
   },
   "devDependencies": {
     "@types/bun": "1.4.4",
-    "typescript": "7.0.2",
-    "typescript-6": "npm:typescript@6.0.3"
+    "typescript": "7.0.2"
   }
 }

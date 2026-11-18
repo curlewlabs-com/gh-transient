@@ -189,7 +189,7 @@ so one call's whole ladder fits in a few minutes of a job's timeout.
 - The TypeScript entry point is TypeScript source, for Bun. A caller
   type-checks it as part of its own program; CI checks a caller's project
   (`consumer/`) against the release tarball under strict settings with each
-  TypeScript release the `typescript` and `typescript-6` devDependencies name.
+  TypeScript release its callers compile with.
 
 ## Versioning
 
