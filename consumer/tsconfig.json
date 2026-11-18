@@ -1,0 +1,28 @@
+{
+  // A caller's project, the shape CI installs the packed tarball into: the
+  // package ships TypeScript source, so a caller type-checks this package's
+  // ts/index.ts as part of its own program, under its own compiler and
+  // settings. These are the strictest settings the package's callers use
+  // together, on the lib they target. CI checks it under each TypeScript
+  // release they compile with (the devDependencies `typescript` and
+  // `typescript-6`).
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "types": ["bun"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["read.ts"]
+}
