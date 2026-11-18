@@ -64,10 +64,9 @@ the package beside it on `PYTHONPATH` for every later step of the job. Each
 retry is a `::warning::` annotation, and a read GitHub keeps failing is an
 `::error::` annotation and exit status 1.
 
-The command is for text reads - JSON, `--jq` and `--template` output, the
-listings `gh` prints. It reads `gh`'s stdout as text and writes it back out,
-which decodes it and normalizes line endings, so a binary download such as a
-zipball or a release asset does not belong here; run `gh` for those directly.
+The command writes `gh`'s stdout back out as the bytes `gh` wrote, so a
+binary read - a run's log archive, a zipball, a release asset - comes through
+intact, as JSON and `--jq` output do.
 
 The command's options:
 

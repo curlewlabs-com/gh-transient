@@ -18,10 +18,9 @@ cannot both take the last one.
 A subcommand that rewords gh's errors -
 `gh secret set` prefixes its own - is retried only once classify.py carries a
 live sample of that wording; until then its failures read as unrecognised.
-gh's stdout is read as text and written back out, so this is for text reads -
-JSON, `--jq` output, listings - and not a binary download; each retry is a
-warning annotation, and a call GitHub keeps failing is an error annotation and
-exit status 1.
+gh's stdout is written back out as the bytes gh wrote, so a binary read such as
+a run's log archive comes through intact; each retry is a warning annotation,
+and a call GitHub keeps failing is an error annotation and exit status 1.
 """
 
 from __future__ import annotations
@@ -33,7 +32,12 @@ import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from gh_transient.retry import GhError, read_gh
+from gh_transient.retry import (
+    GhError,
+    is_transient_gh_error,
+    retry_transient,
+    run_gh_bytes,
+)
 
 # Per attempt, where retry.py's default is minutes: a workflow job's timeout is
 # minutes long and has to hold one call's whole ladder - every attempt and the
@@ -86,9 +90,9 @@ def main(
     if not gh_arguments:
         parser.error("no gh arguments after --")
     try:
-        out = read_gh(
-            gh_arguments,
-            timeout=ATTEMPT_TIMEOUT_SECONDS,
+        out = retry_transient(
+            lambda: run_gh_bytes(gh_arguments, timeout=ATTEMPT_TIMEOUT_SECONDS),
+            is_transient_gh_error,
             on_retry=lambda delay, error: print(
                 f"::warning::GitHub did not serve gh {gh_arguments[0]}; "
                 f"retrying in {delay}s: {error}",
@@ -102,5 +106,7 @@ def main(
     except GhError as error:
         print(f"::error::{error}", file=sys.stderr)
         return 1
-    sys.stdout.write(out)
+    sys.stdout.flush()
+    sys.stdout.buffer.write(out)
+    sys.stdout.buffer.flush()
     return 0
