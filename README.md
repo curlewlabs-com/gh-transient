@@ -148,17 +148,17 @@ the read ends with its ladder included, so it suits a script, not a server.
 
 ## What counts as transient
 
-| `gh` printed                                                    | Transient                                  |
-| --------------------------------------------------------------- | ------------------------------------------ |
-| A 429 or any 5xx, in any form `gh` reports a status in          | yes                                        |
-| A 403 naming the secondary rate limit                           | yes                                        |
-| A 403 for the primary rate limit, or any other 4xx              | no - it is GitHub's answer                 |
-| `error connecting to <host>`                                    | yes                                        |
-| Go's error for a request with no answer (`Get "<url>": ...`)    | yes                                        |
-| `unexpected end of JSON input` (an answer cut off)              | yes                                        |
-| `GraphQL: Something went wrong while executing your query ...`  | yes                                        |
-| Any other `GraphQL: ...` line                                   | no - it is how a missing PR or label reads |
-| Anything else, a `jq` error included                            | no                                         |
+| `gh` printed                                                   | Transient                                  |
+| -------------------------------------------------------------- | ------------------------------------------ |
+| A 429 or any 5xx, in any form `gh` reports a status in         | yes                                        |
+| A 403 naming the secondary rate limit                          | yes                                        |
+| A 403 for the primary rate limit, or any other 4xx             | no - it is GitHub's answer                 |
+| `error connecting to <host>`                                   | yes                                        |
+| Go's error for a request with no answer (`Get "<url>": ...`)   | yes                                        |
+| `unexpected end of JSON input` (an answer cut off)             | yes                                        |
+| `GraphQL: Something went wrong while executing your query ...` | yes                                        |
+| Any other `GraphQL: ...` line                                  | no - it is how a missing PR or label reads |
+| Anything else, a `jq` error included                           | no                                         |
 
 The primary rate limit's 403 is deliberately not retried. Its reset can be an
 hour away, which no bounded backoff clears, and a caller that has spent its
@@ -198,9 +198,9 @@ say how to move.
 ```sh
 python3 -m unittest discover -s tests -t .
 python3 -m pip install -r requirements-dev.txt
-ruff format --check . && ruff check . && mypy
+mypy
 bun install --frozen-lockfile
-bun run format:check && bun run typecheck && bun run test
+bun run typecheck && bun run test
 ```
 
 [CONTRIBUTING.md](CONTRIBUTING.md) has the conventions, including what a new

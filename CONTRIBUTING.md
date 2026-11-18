@@ -23,9 +23,9 @@ These are the checks CI runs on every push and pull request:
 ```sh
 python3 -m unittest discover -s tests -t .
 python3 -m pip install -r requirements-dev.txt
-ruff format --check . && ruff check . && mypy
+mypy
 bun install --frozen-lockfile
-bun run format:check && bun run typecheck && bun run test
+bun run typecheck && bun run test
 ```
 
 The TypeScript in `ts/` only runs the command. A change to what counts as
