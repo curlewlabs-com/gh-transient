@@ -80,7 +80,8 @@ export function readGhSync(
     // in a workflow does not raise the same annotation twice.
     const reported = stderr
       .split("\n")
-      .findLast((line) => line.startsWith(ERROR_ANNOTATION));
+      .filter((line) => line.startsWith(ERROR_ANNOTATION))
+      .pop();
     if (reported !== undefined) {
       throw new GhReadError(reported.slice(ERROR_ANNOTATION.length));
     }
