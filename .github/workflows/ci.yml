@@ -145,6 +145,24 @@ jobs:
             echo "test files in the tarball" >&2
             exit 1
           fi
+      # A caller runs the tarball, not this tree: installed into a project of
+      # its own, from a directory of its own. So one real read goes through the
+      # installed copy from a directory holding a stand-in for a standard
+      # module the command imports, with PYTHONPATH naming it; were the
+      # stand-in imported, the read would print nothing.
+      - name: Read through the installed tarball, as a caller does
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          consumer="$RUNNER_TEMP/consumer"
+          mkdir "$consumer"
+          cd "$consumer"
+          printf '{"name": "consumer", "private": true, "type": "module"}\n' > package.json
+          bun add "$RUNNER_TEMP"/curlewlabs-com-gh-transient-*.tgz
+          printf 'import { readGhSync } from "@curlewlabs-com/gh-transient";\nconst repo = process.env["GITHUB_REPOSITORY"] ?? "";\nprocess.stdout.write(readGhSync(["api", "repos/" + repo, "--jq", ".full_name"]));\n' > read.ts
+          printf 'raise SystemExit(0)\n' > argparse.py
+          read=$(PYTHONPATH=. bun read.ts)
+          test "$read" = "$GITHUB_REPOSITORY"
 
   conclusion:
     # The one check branch protection requires, so adding or renaming a job
