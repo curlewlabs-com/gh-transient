@@ -91,16 +91,32 @@ describe("readGhSync", () => {
     expect(calls()).toBe(1);
   });
 
-  test("runs the Python released beside it, not one already on PYTHONPATH", () => {
-    // A workflow that also uses the action has another release's copy on
-    // PYTHONPATH; running that one would pair this file with a classifier it
-    // was not released with.
-    const other = join(dir, "other", "gh_transient");
-    mkdirSync(other, { recursive: true });
-    writeFileSync(join(other, "__init__.py"), "");
-    writeFileSync(join(other, "__main__.py"), "print('another release')\n");
+  // A workflow that also uses the action has another release's copy on
+  // PYTHONPATH, and a script may run from a directory holding one; running
+  // either would pair this file with a classifier it was not released with.
+  function anotherRelease(root: string): void {
+    const pkg = join(root, "gh_transient");
+    mkdirSync(pkg, { recursive: true });
+    writeFileSync(join(pkg, "__init__.py"), "");
+    writeFileSync(join(pkg, "__main__.py"), "print('another release')\n");
+  }
+
+  test("runs the Python released beside it, not one on PYTHONPATH", () => {
+    anotherRelease(join(dir, "other"));
     process.env["PYTHONPATH"] = join(dir, "other");
     process.env["FAKE_GH_MODE"] = "archive";
     expect(readGhSync(["api", "x"]).equals(ARCHIVE)).toBe(true);
+  });
+
+  test("runs the Python released beside it, not one in the working directory", () => {
+    anotherRelease(dir);
+    process.env["FAKE_GH_MODE"] = "archive";
+    const before = process.cwd();
+    process.chdir(dir);
+    try {
+      expect(readGhSync(["api", "x"]).equals(ARCHIVE)).toBe(true);
+    } finally {
+      process.chdir(before);
+    }
   });
 });

@@ -4,9 +4,10 @@
 // Nothing here classifies a failure or keeps a ladder. Those live once, in
 // src/gh_transient, and this file runs them, so a shape learned from a live
 // failure reaches TypeScript callers in the same release that teaches it to
-// Python ones. The package's own copy goes first on PYTHONPATH, so the Python
-// that runs is always the one released beside this file, whatever else the
-// caller's environment carries.
+// Python ones. The package's own copy goes first on PYTHONPATH and the working
+// directory is kept off the import path, so the Python that runs is always the
+// one released beside this file, whatever else the caller's environment or
+// directory carries.
 //
 // There is no timeout here: the command bounds each attempt and the ladder
 // between them (ATTEMPT_TIMEOUT_SECONDS in cli.py, RETRY_DELAYS_SECONDS in
@@ -46,7 +47,9 @@ export function readGhSync(
   const inherited = process.env["PYTHONPATH"];
   const result = spawnSync(
     "python3",
-    ["-m", "gh_transient", "read", ...budget, "--", ...args],
+    // -P keeps the working directory off sys.path, where `-m` would put it
+    // ahead of PYTHONPATH and run any gh_transient the caller is standing in.
+    ["-P", "-m", "gh_transient", "read", ...budget, "--", ...args],
     {
       env: {
         ...process.env,
