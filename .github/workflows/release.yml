@@ -29,6 +29,9 @@ jobs:
         with:
           # renovate: datasource=github-releases depName=oven-sh/bun extractVersion=^bun-v(?<version>.+)$
           bun-version: 1.4.4
+          # A release builds what it publishes from the lockfile alone, so no
+          # cache another run wrote can feed into it.
+          no-cache: true
       # ci.yml holds package.json and pyproject.toml to one version, so the tag
       # matching one is the tag matching both.
       - name: Check the tag matches package.json
