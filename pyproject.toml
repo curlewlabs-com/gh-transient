@@ -7,8 +7,8 @@ name = "gh-transient"
 version = "0.2.0"
 description = "Tell a gh CLI call GitHub failed to serve from one it answered, and re-issue a read that was the first kind."
 readme = "README.md"
-license = "MIT"
-license-files = ["LICENSE"]
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
 authors = [{ name = "Curlew Labs" }]
 # The python3 the current Ubuntu hosted runner image ships; the package's
 # __init__ refuses anything older with a message.
