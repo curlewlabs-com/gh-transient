@@ -4,8 +4,7 @@
   // ts/index.ts as part of its own program, under its own compiler and
   // settings. These are the strictest settings the package's callers use
   // together, on the lib they target. CI checks it under each TypeScript
-  // release they compile with (the devDependencies `typescript` and
-  // `typescript-6`).
+  // release they compile with (.github/workflows/ci.yml, job `typescript`).
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
