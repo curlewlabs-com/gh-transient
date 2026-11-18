@@ -23,13 +23,10 @@
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "bun test --no-install ts",
-    "format": "prettier --write ts package.json tsconfig.json",
-    "format:check": "prettier --check ts package.json tsconfig.json"
+    "test": "bun test --no-install ts"
   },
   "devDependencies": {
     "@types/bun": "1.4.4",
-    "prettier": "3.9.10",
     "typescript": "7.0.2"
   }
 }
