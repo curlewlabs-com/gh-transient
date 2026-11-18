@@ -34,6 +34,9 @@ ruff format --check . && ruff check . && mypy
   arguments, and tests pass their own, so no test waits.
 - **Fail closed.** An unrecognised failure is reported, never guessed at.
 - **Standard library only at runtime**, so the action needs nothing installed.
+- **The action's step calls a script.** Its `run:` in `action.yml` is one call
+  of `action/put-on-pythonpath.sh`, so shellcheck reads all of the shell it
+  runs.
 - **Pin dependencies exactly.** An action reference is its release's commit
   SHA with the version beside it, since a tag can be moved, and the tools in
   `requirements-dev.txt` are exact versions, so a resolver cannot move them.
