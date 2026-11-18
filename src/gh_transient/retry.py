@@ -15,6 +15,7 @@ import sys
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Literal, overload
 
 from gh_transient.classify import is_transient, names_secondary_rate_limit
 
@@ -59,6 +60,49 @@ class GhError(RuntimeError):
         self.transient = transient
 
 
+@overload
+def _run_once(
+    args: Sequence[str], *, timeout: float, cwd: Path | None, text: Literal[True]
+) -> str: ...
+@overload
+def _run_once(
+    args: Sequence[str], *, timeout: float, cwd: Path | None, text: Literal[False]
+) -> bytes: ...
+def _run_once(
+    args: Sequence[str], *, timeout: float, cwd: Path | None, text: bool
+) -> str | bytes:
+    command = f"gh {' '.join(args)}"
+    try:
+        completed = subprocess.run(
+            ["gh", *args],
+            capture_output=True,
+            text=text,
+            timeout=timeout,
+            check=False,
+            cwd=cwd,
+        )
+    except OSError as error:
+        raise GhError(f"{command}: {error}") from error
+    except subprocess.TimeoutExpired as error:
+        # A stalled socket is GitHub not answering, the same news as a 5xx.
+        raise GhError(
+            f"{command} timed out after {timeout}s", transient=True
+        ) from error
+    # Replaced rather than strict, so a stray byte in gh's message cannot turn
+    # the failure it reports into a UnicodeDecodeError that hides it.
+    stderr: str = (
+        completed.stderr if text else completed.stderr.decode(errors="replace")
+    )
+    if completed.returncode != 0:
+        raise GhError(
+            f"{command} exited {completed.returncode}: {stderr.strip()}",
+            stderr=stderr,
+            transient=is_transient(stderr),
+        )
+    stdout: str | bytes = completed.stdout
+    return stdout
+
+
 def run_gh(
     args: Sequence[str],
     *,
@@ -71,30 +115,21 @@ def run_gh(
     carried in the error's message, which is then the only record of why the
     call failed.
     """
-    command = f"gh {' '.join(args)}"
-    try:
-        completed = subprocess.run(
-            ["gh", *args],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-            cwd=cwd,
-        )
-    except OSError as error:
-        raise GhError(f"{command}: {error}") from error
-    except subprocess.TimeoutExpired as error:
-        # A stalled socket is GitHub not answering, the same news as a 5xx.
-        raise GhError(
-            f"{command} timed out after {timeout}s", transient=True
-        ) from error
-    if completed.returncode != 0:
-        raise GhError(
-            f"{command} exited {completed.returncode}: {completed.stderr.strip()}",
-            stderr=completed.stderr,
-            transient=is_transient(completed.stderr),
-        )
-    return completed.stdout
+    return _run_once(args, timeout=timeout, cwd=cwd, text=True)
+
+
+def run_gh_bytes(
+    args: Sequence[str],
+    *,
+    timeout: float = GH_TIMEOUT_SECONDS,
+    cwd: Path | None = None,
+) -> bytes:
+    """run_gh, with gh's stdout returned as the bytes gh wrote.
+
+    For output that is not text, such as a run's log archive, which decoding
+    would corrupt. Its failures are run_gh's.
+    """
+    return _run_once(args, timeout=timeout, cwd=cwd, text=False)
 
 
 def say_retry(delay: float, error: Exception) -> None:

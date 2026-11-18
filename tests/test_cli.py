@@ -15,32 +15,51 @@ from unittest import mock
 
 from gh_transient.cli import main, spend
 
-BUSY = subprocess.CompletedProcess(["gh"], 1, "", "gh: Server Error (HTTP 502)\n")
-DONE = subprocess.CompletedProcess(["gh"], 0, "ok\n", "")
+BUSY = subprocess.CompletedProcess(["gh"], 1, b"", b"gh: Server Error (HTTP 502)\n")
+DONE = subprocess.CompletedProcess(["gh"], 0, b"ok\n", b"")
 
 
 class TestGhRetryCli(unittest.TestCase):
     def run_cli(
         self,
         argv: list[str],
-        results: list[subprocess.CompletedProcess[str]],
-    ) -> tuple[int, str, str, mock.MagicMock]:
-        out, err = io.StringIO(), io.StringIO()
+        results: list[subprocess.CompletedProcess[bytes]],
+    ) -> tuple[int, bytes, str, mock.MagicMock]:
+        raw = io.BytesIO()
+        out, err = io.TextIOWrapper(raw), io.StringIO()
         with (
             mock.patch("subprocess.run", side_effect=results) as run,
             contextlib.redirect_stdout(out),
             contextlib.redirect_stderr(err),
         ):
             code = main(argv, sleep=lambda delay: None)
-        return code, out.getvalue(), err.getvalue(), run
+        return code, raw.getvalue(), err.getvalue(), run
 
     def test_a_refusal_is_an_error_and_a_failed_exit_at_once(self) -> None:
         refused = subprocess.CompletedProcess(
-            ["gh"], 1, "", "gh: Not Found (HTTP 404)\n"
+            ["gh"], 1, b"", b"gh: Not Found (HTTP 404)\n"
         )
         code, out, err, run = self.run_cli(["read", "--", "api", "x"], [refused])
-        self.assertEqual((code, out, run.call_count), (1, "", 1))
+        self.assertEqual((code, out, run.call_count), (1, b"", 1))
         self.assertIn("::error::", err)
+
+    def test_the_output_is_the_bytes_gh_wrote(self) -> None:
+        # A run's log archive is a zip: decoding it as text, or turning its
+        # CRLFs into LFs, hands the caller an archive it cannot open.
+        archive = b"PK\x03\x04\xff\xfe\r\n\x00"
+        written = subprocess.CompletedProcess(["gh"], 0, archive, b"")
+        code, out, _, _ = self.run_cli(["read", "--", "api", "x"], [BUSY, written])
+        self.assertEqual((code, out), (0, archive))
+
+    def test_a_stray_byte_in_the_failure_still_reads_as_github_busy(self) -> None:
+        # Decoded strictly, the byte would raise in place of the 502 it carries,
+        # and a read GitHub only failed to serve would never be re-issued.
+        garbled = subprocess.CompletedProcess(
+            ["gh"], 1, b"", b"gh: Server Error \xff (HTTP 502)\n"
+        )
+        code, out, err, run = self.run_cli(["read", "--", "api", "x"], [garbled, DONE])
+        self.assertEqual((code, out, run.call_count), (0, b"ok\n", 2))
+        self.assertIn("::warning::", err)
 
     def test_calls_of_one_step_share_its_retry_budget(self) -> None:
         # A scan's reads each run their own process; drawing on one file is what
