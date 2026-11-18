@@ -25,6 +25,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
@@ -52,6 +54,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - if: matrix.python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -69,6 +73,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: The action, as a workflow uses it
         uses: ./
       - name: A later step imports the package
@@ -77,11 +83,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 -m gh_transient read -- api "repos/$GITHUB_REPOSITORY" --jq .full_name
+      # GITHUB_ENV is read a line at a time, so a PYTHONPATH holding a newline
+      # would set a second variable of its own; the action must refuse it.
+      - name: The action refuses a PYTHONPATH holding a newline
+        id: newline
+        continue-on-error: true
+        env:
+          PYTHONPATH: "/somewhere\nINJECTED=1"
+        uses: ./
+      - name: Require that it refused, and set nothing
+        env:
+          OUTCOME: ${{ steps.newline.outcome }}
+        run: test "$OUTCOME" = failure && test -z "${INJECTED:-}"
 
   actionlint:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Run actionlint
         # The installer script is pinned to a commit rather than its main
         # branch, and fetches the release named after it. Renovate moves the
@@ -91,10 +111,21 @@ jobs:
           bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/914e7df21a07ef503a81201c76d2b11c789d3fca/scripts/download-actionlint.bash) 1.7.12
           ./actionlint -color
 
+  baseline:
+    # The checks every Curlew Labs repository runs, in one place:
+    # https://github.com/curlewlabs-com/ci-baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: curlewlabs-com/ci-baseline@c82082df9a3c5e6dab047d9ddb92f130f1537d8e # v0.1.1
+
   conclusion:
     # The one check branch protection requires, so adding or renaming a job
     # above needs no settings change - only this list.
-    needs: [lint, test, action, actionlint]
+    needs: [lint, test, action, actionlint, baseline]
     runs-on: ubuntu-24.04
     if: always()
     steps:
@@ -104,6 +135,8 @@ jobs:
           TEST: ${{ needs.test.result }}
           ACTION: ${{ needs.action.result }}
           ACTIONLINT: ${{ needs.actionlint.result }}
+          BASELINE: ${{ needs.baseline.result }}
         run: |
           test "$LINT" = success && test "$TEST" = success &&
-            test "$ACTION" = success && test "$ACTIONLINT" = success
+            test "$ACTION" = success && test "$ACTIONLINT" = success &&
+            test "$BASELINE" = success

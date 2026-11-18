@@ -21,8 +21,5 @@ runs:
   using: composite
   steps:
     - name: Put gh_transient on PYTHONPATH
-      shell: bash
-      env:
-        SRC: ${{ github.action_path }}/src
-      # Prepended, keeping whatever PYTHONPATH the job already set.
-      run: echo "PYTHONPATH=$SRC${PYTHONPATH:+:$PYTHONPATH}" >> "$GITHUB_ENV"
+      shell: sh
+      run: '"$GITHUB_ACTION_PATH/action/put-on-pythonpath.sh"'
