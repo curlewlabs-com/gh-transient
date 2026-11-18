@@ -159,8 +159,10 @@ jobs:
       # one is this job's input, not the package's: fetched by exact version
       # and checked against the integrity npm publishes for it (`npm view
       # typescript@<version> dist.integrity`), so a version moved without its
-      # integrity fails here. It has no dependencies, so the tarball is the
-      # whole compiler.
+      # integrity fails here. An update is proposed only once approved, and
+      # whoever approves it writes the new integrity on the branch; it stays on
+      # 6.x until those callers move to 7, when this second compiler goes. It
+      # has no dependencies, so the tarball is the whole compiler.
       - name: Type-check the caller under each TypeScript its callers use
         env:
           # renovate: datasource=npm depName=typescript
