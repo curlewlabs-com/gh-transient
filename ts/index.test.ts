@@ -1,10 +1,12 @@
 // readGhSync against the real command and a stand-in `gh` on PATH. Which
 // failures are re-issued is the Python suite's; these cover what the
 // TypeScript side adds: the bytes come back whole, the command's verdict
-// becomes a thrown error, the options reach the command, and the Python that
-// runs is the copy released beside this file.
+// becomes a thrown error whichever way the command failed, its annotations
+// reach the caller's stderr, the options reach the command, and the Python
+// that runs is the copy released beside this file over the standard library,
+// whatever the caller's import path holds.
 
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import {
   chmodSync,
   mkdirSync,
@@ -81,6 +83,51 @@ describe("readGhSync", () => {
     expect(calls()).toBe(1);
   });
 
+  function thrownBy(read: () => unknown): GhReadError {
+    let thrown: unknown;
+    try {
+      read();
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(GhReadError);
+    return thrown as GhReadError;
+  }
+
+  test("passes the command's annotations on to stderr", () => {
+    // A workflow log shows the retry warnings and the error only if they
+    // reach the caller's stderr; the thrown error alone is not an annotation.
+    process.env["FAKE_GH_MODE"] = "busy";
+    const budgetFile = join(dir, "budget");
+    writeFileSync(budgetFile, "0\n");
+    const written: string[] = [];
+    const spy = spyOn(process.stderr, "write").mockImplementation((chunk) => {
+      written.push(String(chunk));
+      return true;
+    });
+    try {
+      thrownBy(() => readGhSync(["api", "x"], { budgetFile }));
+    } finally {
+      spy.mockRestore();
+    }
+    expect(written.join("")).toContain("::error::");
+  });
+
+  test("throws, naming the exit status, when the command refuses its arguments", () => {
+    // A failure the command reports without an error annotation (here its
+    // usage error) must still be a GhReadError, not a read that returned.
+    const message = thrownBy(() => readGhSync([])).message;
+    expect(message).toContain("exited 2");
+    expect(calls()).toBe(0);
+  });
+
+  test("throws when python3 cannot be started", () => {
+    process.env["PATH"] = join(dir, "bin");
+    const message = thrownBy(() => readGhSync(["api", "x"])).message;
+    expect(message).toContain("could not run");
+    expect(calls()).toBe(0);
+  });
+
   test("passes the budget file to the command", () => {
     // With no retries left in the file, a read GitHub failed to serve fails
     // at its first failure instead of waiting out the ladder.
@@ -106,6 +153,23 @@ describe("readGhSync", () => {
     process.env["PYTHONPATH"] = join(dir, "other");
     process.env["FAKE_GH_MODE"] = "archive";
     expect(readGhSync(["api", "x"]).equals(ARCHIVE)).toBe(true);
+  });
+
+  test("no standard module on an inherited PYTHONPATH stands in for the real one", () => {
+    // A caller whose PYTHONPATH holds `.` puts its working directory ahead of
+    // the standard library; a module there named like one the command imports
+    // would run in its place, and this one turns a refused read into a pass.
+    writeFileSync(join(dir, "argparse.py"), "raise SystemExit(0)\n");
+    process.env["PYTHONPATH"] = ".";
+    process.env["FAKE_GH_MODE"] = "refused";
+    const before = process.cwd();
+    process.chdir(dir);
+    try {
+      thrownBy(() => readGhSync(["api", "x"]));
+    } finally {
+      process.chdir(before);
+    }
+    expect(calls()).toBe(1);
   });
 
   test("runs the Python released beside it, not one in the working directory", () => {

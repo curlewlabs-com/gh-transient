@@ -4,10 +4,12 @@
 // Nothing here classifies a failure or keeps a ladder. Those live once, in
 // src/gh_transient, and this file runs them, so a shape learned from a live
 // failure reaches TypeScript callers in the same release that teaches it to
-// Python ones. The package's own copy goes first on PYTHONPATH and the working
-// directory is kept off the import path, so the Python that runs is always the
-// one released beside this file, whatever else the caller's environment or
-// directory carries.
+// Python ones. The interpreter runs isolated (-I), so nothing of the caller's
+// reaches its import path: not the working directory, not PYTHONPATH or any
+// other PYTHON* variable, not the user's site-packages. The one entry put
+// there is the package released beside this file, so the Python that runs is
+// always that copy over the standard library, whatever else the caller's
+// environment or directory carries.
 //
 // There is no timeout here: the command bounds each attempt and the ladder
 // between them (ATTEMPT_TIMEOUT_SECONDS in cli.py, RETRY_DELAYS_SECONDS in
@@ -15,10 +17,15 @@
 // error. A caller sizes its job's deadline from those.
 
 import { spawnSync } from "node:child_process";
-import { delimiter } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PACKAGE_PYTHON = fileURLToPath(new URL("../src", import.meta.url));
+// -I ignores PYTHONPATH too, so the program puts the package's directory on
+// the import path itself, then runs the command as `python3 -m gh_transient`
+// would.
+const LAUNCH =
+  "import sys; sys.path.insert(0, sys.argv.pop(1)); " +
+  "from gh_transient.cli import main; sys.exit(main())";
 const ERROR_ANNOTATION = "::error::";
 
 export interface ReadGhOptions {
@@ -44,20 +51,10 @@ export function readGhSync(
     options.budgetFile === undefined
       ? []
       : ["--budget-file", options.budgetFile];
-  const inherited = process.env["PYTHONPATH"];
   const result = spawnSync(
     "python3",
-    // -P keeps the working directory off sys.path, where `-m` would put it
-    // ahead of PYTHONPATH and run any gh_transient the caller is standing in.
-    ["-P", "-m", "gh_transient", "read", ...budget, "--", ...args],
+    ["-I", "-c", LAUNCH, PACKAGE_PYTHON, "read", ...budget, "--", ...args],
     {
-      env: {
-        ...process.env,
-        PYTHONPATH:
-          inherited === undefined || inherited === ""
-            ? PACKAGE_PYTHON
-            : `${PACKAGE_PYTHON}${delimiter}${inherited}`,
-      },
       stdio: ["ignore", "pipe", "pipe"],
       // A run's log archive can be far past the default buffer, which would
       // kill the command partway through writing it.
