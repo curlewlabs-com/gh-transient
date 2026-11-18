@@ -12,6 +12,7 @@ on:
   schedule:
     - cron: "41 6 * * 1"
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -122,10 +123,53 @@ jobs:
           persist-credentials: false
       - uses: curlewlabs-com/ci-baseline@c82082df9a3c5e6dab047d9ddb92f130f1537d8e # v0.1.1
 
+  typescript:
+    # The TypeScript entry point, and the tarball a release attaches. Its tests
+    # run the Python package through the command, so they run on the runner's
+    # own python3, as a caller's would.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          # renovate: datasource=github-releases depName=oven-sh/bun extractVersion=^bun-v(?<version>.+)$
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run format:check
+      - run: bun run typecheck
+      - run: bun run test
+      # The tarball and the Python package are one release, so their versions
+      # cannot differ.
+      - name: Check package.json and pyproject.toml name one version
+        run: |
+          npm_version=$(bun -e 'console.log(require("./package.json").version)')
+          python_version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          test "$npm_version" = "$python_version"
+      # The release asset is this tarball, so its file list is checked on every
+      # change: the TypeScript entry point, the Python it runs, and no test.
+      - name: Pack the release tarball
+        run: bun pm pack --destination "$RUNNER_TEMP"
+      - name: Check the tarball's contents
+        run: |
+          tar -tzf "$RUNNER_TEMP"/curlewlabs-com-gh-transient-*.tgz | sort > "$RUNNER_TEMP/packed.txt"
+          cat "$RUNNER_TEMP/packed.txt"
+          grep -qx 'package/ts/index.ts' "$RUNNER_TEMP/packed.txt"
+          grep -qx 'package/src/gh_transient/cli.py' "$RUNNER_TEMP/packed.txt"
+          grep -qx 'package/src/gh_transient/retry.py' "$RUNNER_TEMP/packed.txt"
+          grep -qx 'package/src/gh_transient/classify.py' "$RUNNER_TEMP/packed.txt"
+          grep -qx 'package/LICENSE-MIT' "$RUNNER_TEMP/packed.txt"
+          if grep -E '\.test\.ts$|/tests/' "$RUNNER_TEMP/packed.txt"; then
+            echo "test files in the tarball" >&2
+            exit 1
+          fi
+
   conclusion:
     # The one check branch protection requires, so adding or renaming a job
     # above needs no settings change - only this list.
-    needs: [lint, test, action, actionlint, baseline]
+    needs: [lint, test, typescript, action, actionlint, baseline]
     runs-on: ubuntu-24.04
     if: always()
     steps:
@@ -133,10 +177,11 @@ jobs:
         env:
           LINT: ${{ needs.lint.result }}
           TEST: ${{ needs.test.result }}
+          TYPESCRIPT: ${{ needs.typescript.result }}
           ACTION: ${{ needs.action.result }}
           ACTIONLINT: ${{ needs.actionlint.result }}
           BASELINE: ${{ needs.baseline.result }}
         run: |
           test "$LINT" = success && test "$TEST" = success &&
-            test "$ACTION" = success && test "$ACTIONLINT" = success &&
+            test "$TYPESCRIPT" = success && test "$ACTION" = success && test "$ACTIONLINT" = success &&
             test "$BASELINE" = success

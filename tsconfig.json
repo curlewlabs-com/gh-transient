@@ -1,0 +1,26 @@
+{
+  // The package ships this TypeScript as source and its tests run under Bun,
+  // so one program covers both. rootDir is the boundary: tsc refuses a file
+  // the program reaches outside ts/.
+  //
+  // The opt-in strictness flags are on so a caller with the same flags can
+  // typecheck this source as part of its own program.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "types": ["bun"],
+    "rootDir": "ts",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["ts/**/*.ts"]
+}
