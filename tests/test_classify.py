@@ -109,6 +109,41 @@ class TestABusyApiIsNotAVerdict(unittest.TestCase):
             )
         )
 
+    def test_gh_api_graphql_reporting_the_give_up_is_retried(self) -> None:
+        """`gh api graphql` prints the same give-up under `gh: `, in the shape of a
+        label-deleting mutation that failed on 2026-11-25. Read as final, it
+        ended a run before the claim that label held was released, so every
+        later run refused until a person recovered the claim."""
+        self.assertTrue(
+            is_transient(
+                "gh: Something went wrong while executing your query on "
+                "2026-01-01T00:00:00Z. Please include "
+                "`0000:000000:000000:000000:00000000` when reporting this issue."
+            )
+        )
+
+    def test_the_give_up_wording_with_a_status_is_read_by_the_status(self) -> None:
+        """`gh api` appends `(HTTP NNN)` to a server message under the same
+        `gh: ` prefix, and a 4xx there is GitHub's answer whatever its words."""
+        for stderr in (
+            "gh: Something went wrong while executing your query (HTTP 422)",
+            (
+                "gh: Something went wrong while executing your query\n"
+                "on a message that spans lines (HTTP 422)"
+            ),
+        ):
+            self.assertFalse(is_transient(stderr), stderr)
+
+    def test_a_gh_api_graphql_answer_about_the_query_is_not(self) -> None:
+        """Under `gh api graphql` an ordinary `gh: ` message is still an answer
+        about the request, so only the give-up wording is read as busy. Taken
+        from gh 2.103.3 reading a node id that does not exist."""
+        self.assertFalse(
+            is_transient(
+                "gh: Could not resolve to a node with the global id of 'LA_missing'"
+            )
+        )
+
     def test_a_graphql_answer_about_the_query_is_not(self) -> None:
         """The same prefix carries resolution failures, which a retry cannot
         fix, so only the give-up wording is read as busy."""

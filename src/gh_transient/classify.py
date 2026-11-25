@@ -82,6 +82,14 @@ GH_CUT_OFF_ANSWER = "unexpected end of JSON input"
 # 2026-11-06; what follows it is a timestamp and a request id.
 GH_GRAPHQL_GAVE_UP = "GraphQL: Something went wrong while executing your query"
 
+# The same give-up as `gh api graphql` prints it: that command reports a 200
+# carrying errors under its own `gh: ` prefix rather than `GraphQL: `. Taken
+# from a `deleteLabel` mutation that failed on 2026-11-25, whose retry ladder
+# had already absorbed a 504 for the same call. It carries no status; the same
+# words with `(HTTP NNN)` after them are read by that status instead.
+GH_API_GRAPHQL_GAVE_UP = "gh: Something went wrong while executing your query"
+GH_STATUS_SUFFIX = re.compile(r"\(HTTP \d{3}\)$")
+
 # The 403 that is a busy API rather than a refusal, in GitHub's words. Needed
 # only on that status: GitHub answers either rate limit with a 403 or a 429, and
 # a 429 is already retried whichever limit produced it - where a 403 is also how
@@ -143,8 +151,9 @@ def is_transient(stderr: str) -> bool:
       - A request `gh` sent and got no answer to (GH_NO_ANSWER), or an answer
         that arrived empty or cut off (GH_CUT_OFF_ANSWER). Neither carries a
         status; each is the API failing to serve this request, as a 5xx is.
-      - The GraphQL resolver's own give-up (GH_GRAPHQL_GAVE_UP), the 5xx of a
-        200 response.
+      - The GraphQL resolver's own give-up (GH_GRAPHQL_GAVE_UP, or
+        GH_API_GRAPHQL_GAVE_UP from `gh api graphql`), the 5xx of a 200
+        response.
       - Anything else, `jq` shape drift included: `jq`'s diagnostic carries no
         prefix and no status, so it falls through to False, which is the abort
         the drift deserves.
@@ -163,7 +172,8 @@ def is_transient(stderr: str) -> bool:
     server-side bug costs one bounded backoff inside one process, after which
     the read fails exactly as it would have.
     """
-    for line in stderr.splitlines():
+    lines = stderr.splitlines()
+    for line in lines:
         if (
             line.startswith((GH_CONNECT_FAILURE, GH_GRAPHQL_GAVE_UP))
             or GH_NO_ANSWER.match(line)
@@ -172,6 +182,14 @@ def is_transient(stderr: str) -> bool:
             return True
         failure = http_failure(line)
         if failure is None:
+            # `gh api` words an HTTP error under the same `gh: ` prefix with
+            # `(HTTP NNN)` after the whole server message, which may span
+            # lines, and that status is the verdict, so the give-up wording
+            # counts only in a diagnostic carrying no status at all.
+            if line.startswith(GH_API_GRAPHQL_GAVE_UP) and not any(
+                GH_STATUS_SUFFIX.search(other) for other in lines
+            ):
+                return True
             continue
         status, message = failure
         if status == 429 or 500 <= status < 600:
