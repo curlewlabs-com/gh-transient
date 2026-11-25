@@ -94,7 +94,7 @@ than a cancelled job.
 Outside Actions, install it from this repository at a fixed tag:
 
 ```sh
-python3 -m pip install "gh-transient @ git+https://github.com/curlewlabs-com/gh-transient@v0.3.3"
+python3 -m pip install "gh-transient @ git+https://github.com/curlewlabs-com/gh-transient@v0.3.4"
 ```
 
 ```python
