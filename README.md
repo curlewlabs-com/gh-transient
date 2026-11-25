@@ -161,6 +161,7 @@ a script, not a server.
 | Go's error for a request with no answer (`Get "<url>": ...`)   | yes                                        |
 | `unexpected end of JSON input` (an answer cut off)             | yes                                        |
 | `GraphQL: Something went wrong while executing your query ...` | yes                                        |
+| The same from `gh api graphql`, `gh: Something went wrong ...` | yes, unless it carries an `(HTTP NNN)`     |
 | Any other `GraphQL: ...` line                                  | no - it is how a missing PR or label reads |
 | Anything else, a `jq` error included                           | no                                         |
 
