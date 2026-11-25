@@ -127,8 +127,10 @@ class TestABusyApiIsNotAVerdict(unittest.TestCase):
         `gh: ` prefix, and a 4xx there is GitHub's answer whatever its words."""
         for stderr in (
             "gh: Something went wrong while executing your query (HTTP 422)",
-            "gh: Something went wrong while executing your query\n"
-            "on a message that spans lines (HTTP 422)",
+            (
+                "gh: Something went wrong while executing your query\n"
+                "on a message that spans lines (HTTP 422)"
+            ),
         ):
             self.assertFalse(is_transient(stderr), stderr)
 
