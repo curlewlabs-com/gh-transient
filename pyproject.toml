@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "gh-transient"
-version = "0.3.4"
+version = "0.4.0"
 description = "Tell a gh CLI call GitHub failed to serve from one it answered, and re-issue a read that was the first kind."
 readme = "README.md"
 license = "MIT OR Apache-2.0"

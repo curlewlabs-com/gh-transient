@@ -6,12 +6,14 @@ classify.py's, tested in test_classify.py.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import subprocess
 import unittest
 from collections.abc import Sequence
 from unittest import mock
 
-from gh_transient import RETRY_DELAYS_SECONDS, GhError, read_gh
+from gh_transient import RETRY_DELAYS_SECONDS, GhError, read_gh, run_gh_bytes
 from gh_transient.retry import SECONDARY_RATE_LIMIT_WAIT_SECONDS
 
 READ = ["api", "repos/o/n/actions/runs/1"]
@@ -103,6 +105,107 @@ class TestReadGh(unittest.TestCase):
         ):
             read_gh(READ, sleep=slept.append, on_retry=lambda delay, error: None)
         self.assertEqual(slept, list(RETRY_DELAYS_SECONDS))
+
+
+class TestInputAndEnvironment(unittest.TestCase):
+    """What a read sends gh besides its arguments. A retried read that dropped
+    its body would ask GitHub a different question than the first attempt did,
+    and one that dropped its environment would ask it as someone else."""
+
+    def test_every_attempt_of_a_read_sends_its_standard_input(self) -> None:
+        body = '{"query": "query { viewer { login } }"}'
+        with mock.patch(
+            "subprocess.run", side_effect=answers("gh: HTTP 502\n", "")
+        ) as run:
+            read_gh(
+                ["api", "graphql", "--input", "-"],
+                stdin=body,
+                sleep=lambda delay: None,
+                on_retry=lambda delay, error: None,
+            )
+        self.assertEqual(
+            [call.kwargs["input"] for call in run.call_args_list], [body] * 2
+        )
+
+    def test_every_attempt_of_a_read_runs_under_the_given_environment(self) -> None:
+        environment = {"GH_TOKEN": "a-token-of-its-own", "PATH": "/usr/bin"}
+        with mock.patch(
+            "subprocess.run", side_effect=answers("gh: HTTP 502\n", "")
+        ) as run:
+            read_gh(
+                READ,
+                env=environment,
+                sleep=lambda delay: None,
+                on_retry=lambda delay, error: None,
+            )
+        self.assertEqual(
+            [call.kwargs["env"] for call in run.call_args_list], [environment] * 2
+        )
+
+    def test_a_read_given_neither_inherits_both(self) -> None:
+        # None is subprocess.run's own default for each: no standard input,
+        # and this process's environment.
+        with mock.patch("subprocess.run", side_effect=answers("")) as run:
+            read_gh(READ)
+        self.assertIsNone(run.call_args.kwargs["input"])
+        self.assertIsNone(run.call_args.kwargs["env"])
+
+    def test_a_bytes_call_sends_its_standard_input_as_utf8(self) -> None:
+        # Without text mode subprocess.run refuses a str input, so the body
+        # has to arrive encoded.
+        result = subprocess.CompletedProcess(["gh"], 0, b"archive", b"")
+        with mock.patch("subprocess.run", return_value=result) as run:
+            run_gh_bytes(["api", "graphql", "--input", "-"], stdin="caf\u00e9")
+        self.assertEqual(run.call_args.kwargs["input"], "caf\u00e9".encode())
+
+
+class TestForwardedStderr(unittest.TestCase):
+    """What gh printed, passed on to the caller's own stderr when asked. A
+    capture that kept it would hide a warning on a call that succeeded, and
+    an operator reading the log would lose the only record of a failed
+    attempt that a later one recovered from."""
+
+    def forwarded(
+        self,
+        results: Sequence[subprocess.CompletedProcess[str] | Exception],
+        forward_stderr: bool = False,
+    ) -> str:
+        printed = io.StringIO()
+        with (
+            mock.patch("subprocess.run", side_effect=results),
+            contextlib.redirect_stderr(printed),
+        ):
+            read_gh(
+                READ,
+                sleep=lambda delay: None,
+                on_retry=lambda delay, error: None,
+                forward_stderr=forward_stderr,
+            )
+        return printed.getvalue()
+
+    def test_every_attempts_stderr_is_passed_on_when_asked(self) -> None:
+        results = [
+            subprocess.CompletedProcess(["gh"], 1, "", "gh: HTTP 502\n"),
+            subprocess.CompletedProcess(["gh"], 0, "{}", "warning: deprecated\n"),
+        ]
+        self.assertEqual(
+            self.forwarded(results, forward_stderr=True),
+            "gh: HTTP 502\nwarning: deprecated\n",
+        )
+
+    def test_nothing_is_passed_on_unless_asked(self) -> None:
+        results = [subprocess.CompletedProcess(["gh"], 0, "{}", "warning\n")]
+        self.assertEqual(self.forwarded(results), "")
+
+    def test_a_stalled_attempts_partial_stderr_is_passed_on_decoded(self) -> None:
+        # subprocess leaves a timeout's captured stderr as bytes even in text
+        # mode, so writing it as it stands would fail inside the error path.
+        stalled = subprocess.TimeoutExpired(["gh"], 60, stderr=b"partial\n")
+        results: list[subprocess.CompletedProcess[str] | Exception] = [
+            stalled,
+            subprocess.CompletedProcess(["gh"], 0, "{}", ""),
+        ]
+        self.assertEqual(self.forwarded(results, forward_stderr=True), "partial\n")
 
 
 class TestSharedDeadline(unittest.TestCase):
