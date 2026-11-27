@@ -118,6 +118,17 @@ run_gh(["issue", "comment", "1", "--body", "done"])  # a mutation: once
   would end past the deadline, and each attempt is cut off by the time left.
 - `may_retry`: asked before each wait, so several reads can share a count.
 - `on_retry` and `sleep`: hooks for logging and for tests.
+- `stdin`: text written to gh's standard input on every attempt, for a body
+  read with `--input -`, such as `gh api graphql --input -`.
+- `env`: gh's whole environment, as `subprocess.run` takes it, for a call
+  under a token of its own: `{**os.environ, "GH_TOKEN": token}`.
+- `forward_stderr`: also write what gh printed on each attempt to this
+  process's stderr, whatever its outcome. Off by default, since the capture
+  is what the retry decision reads.
+
+`run_gh` takes `timeout`, `cwd`, `stdin`, `env` and `forward_stderr` too.
+`run_gh_bytes` is `run_gh` returning the bytes gh wrote, for output that is
+not text or that a caller decodes its own way.
 
 A caller that keeps its own error type around its own `gh` runner can use the
 pieces separately: `is_transient(stderr)` to classify, and

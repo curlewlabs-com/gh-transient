@@ -13,7 +13,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Literal, overload
 
@@ -62,28 +62,56 @@ class GhError(RuntimeError):
 
 @overload
 def _run_once(
-    args: Sequence[str], *, timeout: float, cwd: Path | None, text: Literal[True]
+    args: Sequence[str],
+    *,
+    timeout: float,
+    cwd: Path | None,
+    stdin: str | None,
+    env: Mapping[str, str] | None,
+    forward_stderr: bool,
+    text: Literal[True],
 ) -> str: ...
 @overload
 def _run_once(
-    args: Sequence[str], *, timeout: float, cwd: Path | None, text: Literal[False]
+    args: Sequence[str],
+    *,
+    timeout: float,
+    cwd: Path | None,
+    stdin: str | None,
+    env: Mapping[str, str] | None,
+    forward_stderr: bool,
+    text: Literal[False],
 ) -> bytes: ...
 def _run_once(
-    args: Sequence[str], *, timeout: float, cwd: Path | None, text: bool
+    args: Sequence[str],
+    *,
+    timeout: float,
+    cwd: Path | None,
+    stdin: str | None,
+    env: Mapping[str, str] | None,
+    forward_stderr: bool,
+    text: bool,
 ) -> str | bytes:
     command = f"gh {' '.join(args)}"
+    # Without text, subprocess.run takes only bytes. A request body is JSON,
+    # which RFC 8259 requires be UTF-8 between systems.
+    sent = stdin if text or stdin is None else stdin.encode()
     try:
         completed = subprocess.run(
             ["gh", *args],
+            input=sent,
             capture_output=True,
             text=text,
             timeout=timeout,
             check=False,
             cwd=cwd,
+            env=env,
         )
     except OSError as error:
         raise GhError(f"{command}: {error}") from error
     except subprocess.TimeoutExpired as error:
+        if forward_stderr:
+            _forward(error.stderr)
         # A stalled socket is GitHub not answering, the same news as a 5xx.
         raise GhError(
             f"{command} timed out after {timeout}s", transient=True
@@ -93,6 +121,8 @@ def _run_once(
     stderr: str = (
         completed.stderr if text else completed.stderr.decode(errors="replace")
     )
+    if forward_stderr:
+        _forward(stderr)
     if completed.returncode != 0:
         raise GhError(
             f"{command} exited {completed.returncode}: {stderr.strip()}",
@@ -103,19 +133,43 @@ def _run_once(
     return stdout
 
 
+def _forward(captured: str | bytes | None) -> None:
+    # Bytes even under text mode where a timeout leaves them, and None where
+    # the child was killed before it wrote anything.
+    if isinstance(captured, bytes):
+        captured = captured.decode(errors="replace")
+    if captured:
+        sys.stderr.write(captured)
+
+
 def run_gh(
     args: Sequence[str],
     *,
     timeout: float = GH_TIMEOUT_SECONDS,
     cwd: Path | None = None,
+    stdin: str | None = None,
+    env: Mapping[str, str] | None = None,
+    forward_stderr: bool = False,
 ) -> str:
     """Run `gh` ONCE and return its stdout, raising GhError on any failure.
 
     The call a mutation makes. gh's stderr is captured to classify it and
     carried in the error's message, which is then the only record of why the
-    call failed.
+    call failed. `stdin` is written to gh's standard input, for a body read
+    with `--input -`; `env`, when given, is gh's whole environment, as
+    subprocess.run takes it. `forward_stderr` also writes what gh printed to
+    this process's stderr, whatever the outcome, since capturing it would
+    otherwise hide a warning on a call that succeeded.
     """
-    return _run_once(args, timeout=timeout, cwd=cwd, text=True)
+    return _run_once(
+        args,
+        timeout=timeout,
+        cwd=cwd,
+        stdin=stdin,
+        env=env,
+        forward_stderr=forward_stderr,
+        text=True,
+    )
 
 
 def run_gh_bytes(
@@ -123,13 +177,24 @@ def run_gh_bytes(
     *,
     timeout: float = GH_TIMEOUT_SECONDS,
     cwd: Path | None = None,
+    stdin: str | None = None,
+    env: Mapping[str, str] | None = None,
+    forward_stderr: bool = False,
 ) -> bytes:
     """run_gh, with gh's stdout returned as the bytes gh wrote.
 
     For output that is not text, such as a run's log archive, which decoding
-    would corrupt. Its failures are run_gh's.
+    would corrupt. Its failures and its arguments are run_gh's.
     """
-    return _run_once(args, timeout=timeout, cwd=cwd, text=False)
+    return _run_once(
+        args,
+        timeout=timeout,
+        cwd=cwd,
+        stdin=stdin,
+        env=env,
+        forward_stderr=forward_stderr,
+        text=False,
+    )
 
 
 def say_retry(delay: float, error: Exception) -> None:
@@ -203,6 +268,9 @@ def read_gh(
     *,
     timeout: float = GH_TIMEOUT_SECONDS,
     cwd: Path | None = None,
+    stdin: str | None = None,
+    env: Mapping[str, str] | None = None,
+    forward_stderr: bool = False,
     on_retry: Callable[[float, Exception], None] = say_retry,
     sleep: Callable[[float], None] | None = None,
     deadline: float | None = None,
@@ -211,8 +279,10 @@ def read_gh(
 ) -> str:
     """run_gh for a READ, re-issued while its failure says GitHub was busy.
 
-    With a `deadline`, each attempt is also cut off by the time left before it,
-    and one that would start with none left fails as transient without running.
+    Every attempt sends the same `stdin` under the same `env`, and with
+    `forward_stderr` passes on what gh printed, each as run_gh does. With a
+    `deadline`, each attempt is also cut off by the time left before it, and one
+    that would start with none left fails as transient without running.
     """
 
     def attempt() -> str:
@@ -225,7 +295,14 @@ def read_gh(
                     transient=True,
                 )
             bound = min(timeout, left)
-        return run_gh(args, timeout=bound, cwd=cwd)
+        return run_gh(
+            args,
+            timeout=bound,
+            cwd=cwd,
+            stdin=stdin,
+            env=env,
+            forward_stderr=forward_stderr,
+        )
 
     return retry_transient(
         attempt,

@@ -21,6 +21,7 @@ from gh_transient.retry import (
     read_gh,
     retry_transient,
     run_gh,
+    run_gh_bytes,
     say_retry,
 )
 
@@ -34,5 +35,6 @@ __all__ = [
     "read_gh",
     "retry_transient",
     "run_gh",
+    "run_gh_bytes",
     "say_retry",
 ]
