@@ -68,10 +68,33 @@ jobs:
       matrix:
         runner: [ubuntu-24.04, macos-26]
     runs-on: ${{ matrix.runner }}
+    env:
+      PYTHONPATH: ./caller-pythonpath
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Set up for a launcher that uses the source path directly
+        id: isolated
+        uses: ./
+        with:
+          export-pythonpath: "false"
+      - name: Import from the output and check the caller's Python path
+        env:
+          SOURCE_PATH: ${{ steps.isolated.outputs.source-path }}
+        run: |
+          test "$PYTHONPATH" = ./caller-pythonpath
+          python3 -I -S - "$SOURCE_PATH" <<'PY'
+          import sys
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          assert source.is_absolute(), source
+          sys.path.insert(0, str(source))
+          import gh_transient
+
+          assert Path(gh_transient.__file__).resolve() == Path("src/gh_transient/__init__.py").resolve()
+          PY
       - name: The action, as a workflow uses it
         uses: ./
       - name: A later step imports the package

@@ -1,18 +1,32 @@
 #!/bin/sh
-# The action's one step: prepend the package beside this action to PYTHONPATH
-# for every later step of the job, keeping whatever PYTHONPATH the job already
-# set. The entries are kept on purpose: those steps run the job's own Python,
-# which may import from them too, and choosing that path is the job's call;
-# the package goes first only so its copy is the gh_transient they import.
-# GITHUB_ENV is read a line at a time, so a newline in that value would
-# set a second variable of its own; it is refused instead.
+# Publish the bundled package path through the runner's file commands.
 set -eu
-value=$GITHUB_ACTION_PATH/src${PYTHONPATH:+:$PYTHONPATH}
-case $value in
+source_path=$GITHUB_ACTION_PATH/src
+# A newline in a single-line file command could introduce another entry.
+case $source_path in
 *'
 '*)
-	echo "gh-transient: PYTHONPATH holds a newline; refusing to write it to GITHUB_ENV" >&2
+	echo "gh-transient: bundled source path holds a newline" >&2
 	exit 1
 	;;
 esac
-printf 'PYTHONPATH=%s\n' "$value" >>"$GITHUB_ENV"
+case $EXPORT_PYTHONPATH in
+true)
+	# Later steps can still import the job's own dependencies.
+	value=$source_path${PYTHONPATH:+:$PYTHONPATH}
+	case $value in
+	*'
+'*)
+		echo "gh-transient: PYTHONPATH holds a newline; refusing to write it to GITHUB_ENV" >&2
+		exit 1
+		;;
+	esac
+	printf 'PYTHONPATH=%s\n' "$value" >>"$GITHUB_ENV"
+	;;
+false) ;;
+*)
+	echo "gh-transient: export-pythonpath must be true or false" >&2
+	exit 1
+	;;
+esac
+printf 'source-path=%s\n' "$source_path" >>"$GITHUB_OUTPUT"
