@@ -21,6 +21,6 @@ file a caller names. The security surface is:
   argument list, never through a shell.
 - **The `gh` it runs** is the first one on `PATH`, which it trusts as it trusts
   `python3`.
-- **The action** only prepends its own directory to `PYTHONPATH` for the rest
-  of the job, so a module named `gh_transient` elsewhere on that path is
-  shadowed.
+- **The action** prepends its bundled source to the job's `PYTHONPATH` by
+  default, ahead of any other copy on that path. With the export disabled, the
+  caller's launcher selects its package using the `source-path` output.
