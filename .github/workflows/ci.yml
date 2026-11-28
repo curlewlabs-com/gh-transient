@@ -96,9 +96,15 @@ jobs:
           assert Path(gh_transient.__file__).resolve() == Path("src/gh_transient/__init__.py").resolve()
           PY
       - name: The action, as a workflow uses it
+        id: default
         uses: ./
       - name: A later step imports the package
-        run: python3 -c 'import gh_transient; print(gh_transient.__file__)'
+        env:
+          SOURCE_PATH: ${{ steps.default.outputs.source-path }}
+          ISOLATED_SOURCE_PATH: ${{ steps.isolated.outputs.source-path }}
+        run: |
+          test "$SOURCE_PATH" = "$ISOLATED_SOURCE_PATH"
+          python3 -c 'import gh_transient; print(gh_transient.__file__)'
       - name: A later step reads through the command
         env:
           GH_TOKEN: ${{ github.token }}

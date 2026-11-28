@@ -18,7 +18,7 @@ It comes four ways:
   evidence, and raises `GhError` with `gh`'s message when it keeps failing.
 - **A command and a GitHub Action** for workflow shell steps:
   `python3 -m gh_transient read -- <gh arguments>`, with the action putting
-  the package on the job's `PYTHONPATH` so nothing is installed.
+  the package on the job's `PYTHONPATH` by default so nothing is installed.
 - **A TypeScript function**, `readGhSync(args)`, for scripts under Bun: it runs
   the command and returns the bytes `gh` wrote.
 
@@ -66,8 +66,9 @@ it puts the package beside it on `PYTHONPATH` for every later step of the job. E
 retry is a `::warning::` annotation, and a read GitHub keeps failing is an
 `::error::` annotation and exit status 1.
 
-Composite actions can pass the `source-path` output to their own launcher and
-set `export-pythonpath: "false"` to preserve the caller's job environment.
+Starting with v0.5.0, composite actions can pass the `source-path` output to their
+own launcher and set `export-pythonpath: "false"` to preserve the caller's job
+environment.
 
 The command writes `gh`'s stdout back out as the bytes `gh` wrote, so a
 binary read - a run's log archive, a zipball, a release asset - comes through

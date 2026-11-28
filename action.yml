@@ -7,7 +7,7 @@
 # step mid-job would be one more request that can fail transiently with
 # nothing retrying it.
 #
-# The step itself needs no Python. A later step then runs
+# The step itself needs no Python. With the default export a later step runs
 # `python3 -m gh_transient read -- <gh arguments>`, or imports gh_transient
 # from its own Python; the README has both.
 
