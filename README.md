@@ -61,10 +61,13 @@ steps:
       echo "latest: $tag"
 ```
 
-The action needs no checkout of this repository and installs nothing: it puts
-the package beside it on `PYTHONPATH` for every later step of the job. Each
+The action needs no checkout of this repository and installs nothing. By default
+it puts the package beside it on `PYTHONPATH` for every later step of the job. Each
 retry is a `::warning::` annotation, and a read GitHub keeps failing is an
 `::error::` annotation and exit status 1.
+
+Composite actions can pass the `source-path` output to their own launcher and
+set `export-pythonpath: "false"` to preserve the caller's job environment.
 
 The command writes `gh`'s stdout back out as the bytes `gh` wrote, so a
 binary read - a run's log archive, a zipball, a release asset - comes through

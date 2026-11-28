@@ -1,4 +1,4 @@
-# Put the gh_transient package on PYTHONPATH for every later step of the job.
+# Expose the gh_transient package bundled with this action.
 #
 # The package is the code beside this file, so the job needs no checkout of
 # this repository, no pip install and no network fetch of its own: the runner
@@ -13,13 +13,24 @@
 
 name: "gh-transient"
 description: >-
-  Put the gh_transient package on PYTHONPATH for the rest of the job, so a step
-  can re-issue a gh read that GitHub failed to serve and abort on one it
-  answered.
+  Expose the bundled gh_transient package so a step can re-issue a gh read
+  that GitHub failed to serve and abort on one it answered.
+
+inputs:
+  export-pythonpath:
+    description: "Prepend the bundled source to PYTHONPATH for later job steps."
+    default: "true"
+outputs:
+  source-path:
+    description: "Absolute directory containing the bundled gh_transient package."
+    value: ${{ steps.setup.outputs.source-path }}
 
 runs:
   using: composite
   steps:
-    - name: Put gh_transient on PYTHONPATH
+    - name: Expose the bundled gh_transient package
+      id: setup
       shell: sh
+      env:
+        EXPORT_PYTHONPATH: ${{ inputs.export-pythonpath }}
       run: '"$GITHUB_ACTION_PATH/action/put-on-pythonpath.sh"'
